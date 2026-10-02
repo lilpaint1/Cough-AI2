@@ -1350,15 +1350,15 @@ def predict():
         ), 200
 
     except Exception as e:
+      import traceback
+      print("❌ Prediction error:")
+      traceback.print_exc()
 
-        print(
-            f"❌ Prediction error: {e}"
-        )
-
-        return jsonify({
-            "error":
-                str(e)
-        }), 500
+      return jsonify({
+        "error": str(e),
+        "error_type": type(e).__name__,
+        "stage": "predict"
+      }), 500
 
     finally:
 
