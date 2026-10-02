@@ -122,6 +122,236 @@ os.makedirs(
     exist_ok=True,
 )
 
+# ============================================================
+# LAZY_LOADER STUB FALLBACK (librosa .pyi หายบน Vercel)
+# ============================================================
+LIBROSA_STUB_ROOT = "/tmp/coughai/librosa_stubs"
+LIBROSA_STUB_LOCK = Lock()
+
+
+def _download_librosa_stubs() -> bool:
+    """
+    ดึงไฟล์ .pyi ของ librosa จาก wheel บน PyPI
+    เก็บไว้ใน /tmp (ทำครั้งเดียวต่อ cold start)
+    """
+
+    import urllib.request
+    import zipfile
+
+    marker = os.path.join(
+        LIBROSA_STUB_ROOT,
+        ".ok",
+    )
+
+    with LIBROSA_STUB_LOCK:
+
+        if os.path.exists(marker):
+            return True
+
+        try:
+
+            try:
+                from importlib.metadata import (
+                    version,
+                )
+
+                ver = version("librosa")
+
+            except Exception:
+                ver = "0.10.2.post1"
+
+            meta_url = (
+                f"https://pypi.org/pypi/"
+                f"librosa/{ver}/json"
+            )
+
+            print(
+                f"⬇️ ดึง librosa stubs ({ver}) จาก PyPI..."
+            )
+
+            with urllib.request.urlopen(
+                meta_url,
+                timeout=20,
+            ) as r:
+
+                meta = json.loads(
+                    r.read().decode("utf-8")
+                )
+
+            wheel_url = None
+
+            for item in meta.get("urls", []):
+
+                if (
+                    item.get("packagetype")
+                    == "bdist_wheel"
+                ):
+
+                    wheel_url = item["url"]
+                    break
+
+            if not wheel_url:
+
+                print(
+                    "❌ ไม่พบ wheel ของ librosa บน PyPI"
+                )
+
+                return False
+
+            with urllib.request.urlopen(
+                wheel_url,
+                timeout=60,
+            ) as r:
+
+                wheel_bytes = r.read()
+
+            count = 0
+
+            with zipfile.ZipFile(
+                io.BytesIO(wheel_bytes)
+            ) as z:
+
+                for name in z.namelist():
+
+                    if (
+                        name.startswith("librosa/")
+                        and name.endswith(".pyi")
+                    ):
+
+                        target = os.path.join(
+                            LIBROSA_STUB_ROOT,
+                            name,
+                        )
+
+                        os.makedirs(
+                            os.path.dirname(target),
+                            exist_ok=True,
+                        )
+
+                        with open(
+                            target,
+                            "wb",
+                        ) as out:
+
+                            out.write(
+                                z.read(name)
+                            )
+
+                        count += 1
+
+            if count == 0:
+
+                print(
+                    "❌ wheel ไม่มีไฟล์ .pyi"
+                )
+
+                return False
+
+            with open(marker, "w") as f:
+                f.write("ok")
+
+            print(
+                f"✅ librosa stubs พร้อม ({count} ไฟล์)"
+            )
+
+            return True
+
+        except Exception as e:
+
+            print(
+                f"❌ ดึง librosa stubs ไม่สำเร็จ: {e}"
+            )
+
+            return False
+
+
+def _install_lazy_loader_fallback() -> None:
+    """
+    patch lazy_loader.attach_stub
+    ถ้า .pyi หายจาก bundle -> ใช้ stub จาก /tmp แทน
+    """
+
+    try:
+        import lazy_loader
+    except Exception as e:
+        print(
+            f"⚠️ ไม่มี lazy_loader ({e}) ข้าม patch"
+        )
+        return
+
+    if getattr(
+        lazy_loader,
+        "_coughai_patched",
+        False,
+    ):
+        return
+
+    original_attach_stub = (
+        lazy_loader.attach_stub
+    )
+
+    def patched_attach_stub(
+        package_name,
+        filename,
+    ):
+
+        stub_file = (
+            filename
+            if filename.endswith("i")
+            else os.path.splitext(filename)[0]
+            + ".pyi"
+        )
+
+        # stub ปกติมีอยู่ -> ใช้ตามเดิม
+        if os.path.exists(stub_file):
+
+            return original_attach_stub(
+                package_name,
+                filename,
+            )
+
+        parts = package_name.split(".")
+
+        if parts[0] == "librosa":
+
+            fallback = os.path.join(
+                LIBROSA_STUB_ROOT,
+                *parts,
+                "__init__.pyi",
+            )
+
+            if not os.path.exists(fallback):
+                _download_librosa_stubs()
+
+            if os.path.exists(fallback):
+
+                # ส่งเป็น .py เพื่อให้ lazy_loader
+                # แปลงเป็น .pyi เองได้ทุกเวอร์ชัน
+                return original_attach_stub(
+                    package_name,
+                    os.path.join(
+                        os.path.dirname(fallback),
+                        "__init__.py",
+                    ),
+                )
+
+        return original_attach_stub(
+            package_name,
+            filename,
+        )
+
+    lazy_loader.attach_stub = (
+        patched_attach_stub
+    )
+
+    lazy_loader._coughai_patched = True
+
+    print(
+        "✅ lazy_loader stub fallback ติดตั้งแล้ว"
+    )
+
+
+_install_lazy_loader_fallback()
 
 # ============================================================
 # MODEL PATHS
