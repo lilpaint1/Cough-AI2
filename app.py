@@ -74,7 +74,21 @@ import traceback
 
 from collections import deque
 from datetime import datetime, timezone
-from threading import Lock
+from threading import Lock, Thread
+import time
+
+# ============================================================
+# RESIDENT MODE
+# True  -> โหลดโมเดลครั้งเดียวแล้วค้างไว้ใน RAM (เร็ว) ใช้บน Cloud Run / local
+# False -> โหลด-ปลดทุก request (ประหยัด RAM) ใช้บน Vercel Hobby
+# บังคับได้ด้วย env KEEP_MODELS_LOADED=1 หรือ 0
+# ============================================================
+KEEP_MODELS_LOADED = (
+    os.environ.get(
+        "KEEP_MODELS_LOADED",
+        "0" if os.environ.get("VERCEL") else "1",
+    ) == "1"
+)
 
 
 # ============================================================
@@ -709,6 +723,13 @@ def load_rf_model() -> bool:
             "✅ RF model พร้อมใช้งาน"
         )
 
+        if KEEP_MODELS_LOADED:
+            try:
+                os.remove(RF_MODEL_PATH)
+                print("🗑️ ลบไฟล์ RF ใน /tmp แล้ว (ค้างโมเดลไว้ใน RAM)")
+            except Exception:
+                pass
+
         return True
 
     except Exception as e:
@@ -736,6 +757,9 @@ def unload_rf_model():
     """
 
     global rf_model
+
+    if KEEP_MODELS_LOADED:
+        return
 
     print(
         "🧹 กำลัง unload RF model..."
@@ -904,6 +928,9 @@ def unload_cnn_model():
     global cnn_model
     global CNN_MIN
     global CNN_MAX
+
+    if KEEP_MODELS_LOADED:
+        return
 
     print(
         "🧹 กำลัง unload CNN model..."
@@ -1885,6 +1912,8 @@ def predict():
         unique_name,
     )
 
+    _t_start = time.time()
+
     try:
 
         # ====================================================
@@ -2003,7 +2032,7 @@ def predict():
         )
 
         print(
-            "✅ Prediction สำเร็จ"
+            f"✅ Prediction สำเร็จ ({time.time() - _t_start:.2f}s)"
         )
 
         return jsonify(
@@ -2181,6 +2210,104 @@ def device_result():
             "error":
                 str(e)
         }), 500
+
+
+# ============================================================
+# WARM-UP
+# โหลดโมเดลค้างไว้ + รัน 1-2 รอบด้วยเสียงสังเคราะห์
+# ให้ import librosa / numba JIT / TensorFlow เสร็จก่อนผู้ใช้จริงมา
+# ============================================================
+WARM_STATE = {
+    "state": "idle",        # idle | running | ready | error
+    "error": None,
+    "mode": None,
+    "first_run_s": None,    # รอบแรก (รวมโหลดโมเดล + JIT)
+    "steady_run_s": None,   # รอบสอง = เวลา inference จริงตอนอุ่นแล้ว
+}
+WARM_LOCK = Lock()
+
+
+def warmup_models():
+    with WARM_LOCK:
+        if WARM_STATE["state"] in ("running", "ready"):
+            return
+        WARM_STATE["state"] = "running"
+        WARM_STATE["error"] = None
+
+    wav = os.path.join(UPLOAD_FOLDER, f"warmup_{uuid.uuid4().hex}.wav")
+
+    try:
+        import numpy as np
+        import soundfile as sf
+
+        sr = 16000
+        rng = np.random.default_rng(0)
+        y = (0.1 * rng.standard_normal(sr * 3)).astype(np.float32)
+        sf.write(wav, y, sr, format="WAV")
+
+        t0 = time.time()
+        result = predict_ensemble(wav)
+        WARM_STATE["first_run_s"] = round(time.time() - t0, 2)
+        WARM_STATE["mode"] = result.get("mode")
+
+        if KEEP_MODELS_LOADED:
+            t1 = time.time()
+            predict_ensemble(wav)
+            WARM_STATE["steady_run_s"] = round(time.time() - t1, 2)
+
+        WARM_STATE["state"] = "ready"
+        print(
+            "🔥 Warm-up เสร็จ: "
+            f"รอบแรก {WARM_STATE['first_run_s']}s | "
+            f"รอบอุ่นแล้ว {WARM_STATE['steady_run_s']}s | "
+            f"mode={WARM_STATE['mode']}"
+        )
+
+    except Exception as e:
+        WARM_STATE["state"] = "error"
+        WARM_STATE["error"] = f"{type(e).__name__}: {e}"
+        traceback.print_exc()
+
+    finally:
+        try:
+            if os.path.exists(wav):
+                os.remove(wav)
+        except Exception:
+            pass
+
+
+@app.route("/warmup", methods=["GET", "POST"])
+def warmup():
+    """
+    GET /warmup          -> สั่งอุ่นเครื่องเบื้องหลัง แล้วตอบสถานะทันที
+    GET /warmup?wait=1   -> รอจนเสร็จ (สูงสุด 120 วิ) แล้วค่อยตอบ
+    """
+
+    if WARM_STATE["state"] in ("idle", "error"):
+        Thread(target=warmup_models, daemon=True).start()
+
+    if request.args.get("wait") == "1":
+        deadline = time.time() + 120
+        while (
+            WARM_STATE["state"] in ("idle", "running")
+            and time.time() < deadline
+        ):
+            time.sleep(0.5)
+
+    return jsonify({
+        **WARM_STATE,
+        "keep_models_loaded": KEEP_MODELS_LOADED,
+        "rf_ready": rf_model is not None,
+        "cnn_ready": cnn_model is not None,
+    })
+
+
+# อุ่นเครื่องอัตโนมัติตอน container เริ่ม (ไม่ทำบน Vercel)
+if (
+    KEEP_MODELS_LOADED
+    and os.environ.get("WARMUP_ON_START", "1") == "1"
+):
+    Thread(target=warmup_models, daemon=True).start()
 
 
 # ============================================================
