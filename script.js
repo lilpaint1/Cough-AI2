@@ -324,3 +324,16 @@ resetButton.addEventListener('click', () => {
     recordButton.classList.remove('recording');
     recordText.textContent      = T('app.record.start');
 });
+
+// ── Warm-up ───────────────────────────────────────────────
+// เปิดหน้านี้ปุ๊บ สั่งให้ server เตรียม librosa/TensorFlow/โมเดลล่วงหน้า
+// ระหว่างที่ผู้ใช้กำลังอัดเสียง (ไม่กระทบ UI ถ้าล้มเหลว)
+let lastWarm = 0;
+function warmUp() {
+    const now = Date.now();
+    if (now - lastWarm < 60000) return;   // ไม่ยิงถี่เกิน 1 ครั้ง/นาที
+    lastWarm = now;
+    fetch('/warmup?wait=1', { cache: 'no-store' }).catch(() => {});
+}
+warmUp();                                           // ตอนเปิดหน้า
+recordButton.addEventListener('click', warmUp);     // ตอนกดอัดเสียง (ช่วย 5 วิที่อัดอยู่)
