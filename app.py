@@ -95,6 +95,10 @@ KEEP_MODELS_LOADED = (
 # RF 319 MB + CNN 3 MB < 500 MB ของ /tmp บน Vercel
 KEEP_MODEL_FILES = os.environ.get("KEEP_MODEL_FILES", "1") == "1"
 
+# ให้ทำนายได้ทีละ request ต่อ instance
+# กัน RAM พุ่ง (log จริง: 2 request ซ้อนกันบน instance เดียว = 2045 MB จากเพดาน 2048 MB)
+PREDICT_LOCK = Lock()
+
 
 # ============================================================
 # FLASK
@@ -1990,9 +1994,10 @@ def predict():
         # ====================================================
         # PREDICTION
         # ====================================================
-        result = predict_ensemble(
-            filepath
-        )
+        with PREDICT_LOCK:
+            result = predict_ensemble(
+                filepath
+            )
 
         # ====================================================
         # SAVE HISTORY
@@ -2251,13 +2256,15 @@ def warmup_models():
         sf.write(wav, y, sr, format="WAV")
 
         t0 = time.time()
-        result = predict_ensemble(wav)
+        with PREDICT_LOCK:
+            result = predict_ensemble(wav)
         WARM_STATE["first_run_s"] = round(time.time() - t0, 2)
         WARM_STATE["mode"] = result.get("mode")
 
         if KEEP_MODELS_LOADED:
             t1 = time.time()
-            predict_ensemble(wav)
+            with PREDICT_LOCK:
+                predict_ensemble(wav)
             WARM_STATE["steady_run_s"] = round(time.time() - t1, 2)
 
         WARM_STATE["state"] = "ready"
