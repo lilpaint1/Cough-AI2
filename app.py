@@ -6,15 +6,15 @@ Cloud Run / Vercel ready
 
 สิ่งที่รองรับ:
   1. ดาวน์โหลดโมเดลจาก Google Drive เมื่อจำเป็น
-  2. โหลด RF + CNN แบบ lazy loading
-     -> ไม่โหลดโมเดลตอน import app.py
-  3. ลด top-level imports เพื่อลด startup failure
-  4. /predict บันทึกผลลง history อัตโนมัติ
-  5. History ใช้ Firestore ถ้ามี dependency/credentials
-     ไม่เช่นนั้นใช้ in-memory
-  6. ใช้ /tmp สำหรับไฟล์ชั่วคราวบน Vercel
-  7. CNN + RF soft-voting ensemble 50/50
-  8. หน้า HTML/CSS/JS เดิมยังใช้งานได้
+  2. โหลดโมเดลแบบ Lazy Loading
+  3. RF และ CNN โหลด "ทีละตัว" เพื่อลด RAM
+  4. RF prediction -> unload RF -> CNN prediction
+  5. Ensemble CNN + RF แบบ Soft Voting 50/50
+  6. /predict บันทึกผลลง history อัตโนมัติ
+  7. Firestore optional + in-memory fallback
+  8. ใช้ /tmp สำหรับไฟล์ runtime บน Vercel
+  9. ลด top-level imports เพื่อลด startup failure
+ 10. หน้า HTML/CSS/JS เดิมยังใช้งานได้
 
 โมเดล:
   - cough_rf_model.pkl
@@ -32,32 +32,74 @@ import os
 # ENVIRONMENT
 # ต้องตั้งก่อน import TensorFlow
 # ============================================================
-os.environ.setdefault("CUDA_VISIBLE_DEVICES", "-1")
-os.environ.setdefault("TF_CPP_MIN_LOG_LEVEL", "2")
+os.environ.setdefault(
+    "CUDA_VISIBLE_DEVICES",
+    "-1",
+)
 
+os.environ.setdefault(
+    "TF_CPP_MIN_LOG_LEVEL",
+    "2",
+)
+
+# ลด thread/memory overhead
+os.environ.setdefault(
+    "OMP_NUM_THREADS",
+    "1",
+)
+
+os.environ.setdefault(
+    "OPENBLAS_NUM_THREADS",
+    "1",
+)
+
+os.environ.setdefault(
+    "MKL_NUM_THREADS",
+    "1",
+)
+
+os.environ.setdefault(
+    "NUMEXPR_NUM_THREADS",
+    "1",
+)
+
+
+# ============================================================
+# STANDARD LIBRARIES
+# ============================================================
 import io
 import json
 import uuid
+import traceback
 
 from collections import deque
 from datetime import datetime, timezone
 from threading import Lock
 
-from flask import Flask, request, jsonify, send_from_directory
+
+# ============================================================
+# FLASK
+# ============================================================
+from flask import (
+    Flask,
+    request,
+    jsonify,
+    send_from_directory,
+)
+
 from flask_cors import CORS
+
 from werkzeug.utils import secure_filename
 
 
 # ============================================================
-# BASE / TEMP PATHS
+# BASE / RUNTIME PATHS
 # ============================================================
 BASE_DIR = os.path.dirname(
     os.path.abspath(__file__)
 )
 
-# ------------------------------------------------------------
-# Vercel เขียนไฟล์ runtime ได้ใน /tmp
-# ------------------------------------------------------------
+# Vercel /tmp เป็น writable filesystem
 TMP_DIR = "/tmp/coughai"
 
 MODEL_DIR = os.path.join(
@@ -94,9 +136,7 @@ CNN_MODEL_PATH = os.path.join(
     "cough_cnn_model.h5",
 )
 
-# ------------------------------------------------------------
 # ไฟล์ read-only จาก repository
-# ------------------------------------------------------------
 MINMAX_PATH = os.path.join(
     BASE_DIR,
     "cough_min_max.json",
@@ -104,7 +144,7 @@ MINMAX_PATH = os.path.join(
 
 
 # ============================================================
-# CONFIG
+# MODEL CONFIG
 # ============================================================
 LABELS = [
     "covid",
@@ -118,13 +158,15 @@ IMAGE_SHAPE = (
     1,
 )
 
+# CNN = 50%
+# RF  = 50%
 ENSEMBLE_ALPHA = 0.5
 
 TRIM_TOP_DB = 30
 
 
 # ============================================================
-# GOOGLE DRIVE IDS
+# GOOGLE DRIVE FILE IDS
 # ============================================================
 RF_FILE_ID = os.environ.get(
     "RF_MODEL_FILE_ID",
@@ -138,25 +180,31 @@ CNN_FILE_ID = os.environ.get(
 
 
 # ============================================================
-# RISK + RECOMMENDATION
+# RISK MAP
 # ============================================================
-# กรอบ "คัดกรอง" ไม่ใช่การวินิจฉัย
 RISK_MAP = {
     "covid": "HIGH",
     "symptomatic": "MEDIUM",
     "healthy": "LOW",
 }
 
+
+# ============================================================
+# RECOMMENDATIONS
+# ============================================================
 RECO_MAP = {
+
     "healthy": (
         "เสียงไอของคุณอยู่ในเกณฑ์ปกติ ดูแลสุขภาพให้แข็งแรงต่อไป "
         "พักผ่อนให้เพียงพอ ดื่มน้ำมาก ๆ หากมีอาการผิดปกติภายหลังให้สังเกตอาการต่อ"
     ),
+
     "symptomatic": (
         "ตรวจพบลักษณะการไอที่อาจบ่งชี้ภาวะทางเดินหายใจ แนะนำให้พักผ่อน "
         "ดื่มน้ำอุ่น หลีกเลี่ยงการแพร่เชื้อให้ผู้อื่น และพบแพทย์หากอาการไม่ดีขึ้น "
         "ภายใน 2-3 วัน หรือมีไข้สูง เจ็บหน้าอก หายใจลำบาก"
     ),
+
     "covid": (
         "ตรวจพบลักษณะการไอที่อาจสัมพันธ์กับโควิด-19 แนะนำให้ตรวจ ATK ยืนยัน "
         "แยกกักตัว สวมหน้ากากอนามัย และติดต่อสายด่วนกรมควบคุมโรค 1422 "
@@ -180,13 +228,10 @@ app.config[
 
 
 # ============================================================
-# GLOBAL MODEL STATE
+# MODEL STATE
 # ============================================================
 rf_model = None
 cnn_model = None
-
-RF_READY = False
-CNN_READY = False
 
 MODEL_LOAD_ERROR = None
 
@@ -194,14 +239,14 @@ MODEL_LOCK = Lock()
 
 
 # ============================================================
-# CNN NORMALIZATION STATE
+# CNN NORMALIZATION
 # ============================================================
 CNN_MIN = None
 CNN_MAX = None
 
 
 # ============================================================
-# FIRESTORE STATE
+# FIRESTORE
 # ============================================================
 db = None
 FIRESTORE_INIT_ATTEMPTED = False
@@ -210,7 +255,7 @@ FIRESTORE_LOCK = Lock()
 
 
 # ============================================================
-# IN-MEMORY HISTORY
+# HISTORY
 # ============================================================
 MEM_HISTORY = deque(
     maxlen=100
@@ -220,18 +265,21 @@ HISTORY_LOCK = Lock()
 
 
 # ============================================================
-# DOWNLOAD MODEL
+# MODEL FILE HELPER
 # ============================================================
 def ensure_model(
     path: str,
     file_id: str,
 ) -> bool:
     """
-    ดาวน์โหลดโมเดลจาก Google Drive ถ้ายังไม่มีใน /tmp
+    ตรวจสอบ model file
+    ถ้าไม่มี -> ดาวน์โหลดจาก Google Drive
+
+    ไฟล์ทั้งหมดถูกเก็บใน /tmp
     """
 
     # --------------------------------------------------------
-    # มีไฟล์อยู่แล้ว
+    # Existing file
     # --------------------------------------------------------
     if os.path.exists(path):
 
@@ -245,7 +293,9 @@ def ensure_model(
 
                 size_mb = (
                     size_bytes
-                    / (1024 * 1024)
+                    / (
+                        1024 * 1024
+                    )
                 )
 
                 print(
@@ -260,12 +310,12 @@ def ensure_model(
             pass
 
     # --------------------------------------------------------
-    # ไม่มี File ID
+    # Missing File ID
     # --------------------------------------------------------
     if not file_id:
 
         print(
-            f"⚠️ ไม่มี File ID สำหรับ "
+            f"❌ ไม่มี File ID สำหรับ "
             f"{os.path.basename(path)}"
         )
 
@@ -283,15 +333,16 @@ def ensure_model(
             + ".download"
         )
 
-        # ล้างไฟล์ชั่วคราวเดิม
         if os.path.exists(
             temp_path
         ):
 
             try:
+
                 os.remove(
                     temp_path
                 )
+
             except Exception:
                 pass
 
@@ -322,7 +373,7 @@ def ensure_model(
         ):
 
             print(
-                f"❌ ไม่พบไฟล์ที่ดาวน์โหลด "
+                "❌ ไม่พบไฟล์ชั่วคราว "
                 f"{temp_path}"
             )
 
@@ -341,15 +392,17 @@ def ensure_model(
             )
 
             try:
+
                 os.remove(
                     temp_path
                 )
+
             except Exception:
                 pass
 
             return False
 
-        # ย้ายไฟล์หลัง download สำเร็จ
+        # ย้ายเมื่อดาวน์โหลดสำเร็จเท่านั้น
         os.replace(
             temp_path,
             path,
@@ -357,11 +410,13 @@ def ensure_model(
 
         size_mb = (
             size_bytes
-            / (1024 * 1024)
+            / (
+                1024 * 1024
+            )
         )
 
         print(
-            f"✅ ดาวน์โหลดสำเร็จ "
+            f"✅ ดาวน์โหลดสำเร็จ: "
             f"{os.path.basename(path)} "
             f"({size_mb:.1f} MB)"
         )
@@ -380,14 +435,309 @@ def ensure_model(
 
 
 # ============================================================
+# LOAD RF MODEL
+# ============================================================
+def load_rf_model() -> bool:
+    """
+    ดาวน์โหลด + โหลด RF เท่านั้น
+    """
+
+    global rf_model
+    global MODEL_LOAD_ERROR
+
+    if rf_model is not None:
+        return True
+
+    if not ensure_model(
+        RF_MODEL_PATH,
+        RF_FILE_ID,
+    ):
+
+        MODEL_LOAD_ERROR = (
+            "ไม่สามารถดาวน์โหลด "
+            "Random Forest model ได้ "
+            "กรุณาตรวจสอบ RF_MODEL_FILE_ID"
+        )
+
+        return False
+
+    try:
+
+        import joblib
+
+        print(
+            "🧠 กำลังโหลด RF model..."
+        )
+
+        rf_model = joblib.load(
+            RF_MODEL_PATH
+        )
+
+        MODEL_LOAD_ERROR = None
+
+        print(
+            "✅ RF model พร้อมใช้งาน"
+        )
+
+        return True
+
+    except Exception as e:
+
+        rf_model = None
+
+        MODEL_LOAD_ERROR = (
+            f"โหลด RF model ไม่ได้: {e}"
+        )
+
+        print(
+            f"❌ {MODEL_LOAD_ERROR}"
+        )
+
+        return False
+
+
+# ============================================================
+# UNLOAD RF MODEL
+# ============================================================
+def unload_rf_model():
+    """
+    ปลด RF ออกจาก memory
+    และลบ model file จาก /tmp
+    """
+
+    global rf_model
+
+    print(
+        "🧹 กำลัง unload RF model..."
+    )
+
+    rf_model = None
+
+    try:
+
+        import gc
+
+        gc.collect()
+
+    except Exception:
+        pass
+
+    if os.path.exists(
+        RF_MODEL_PATH
+    ):
+
+        try:
+
+            os.remove(
+                RF_MODEL_PATH
+            )
+
+            print(
+                "🗑️ ลบ RF model จาก /tmp แล้ว"
+            )
+
+        except Exception as e:
+
+            print(
+                f"⚠️ ลบ RF model ไม่สำเร็จ: {e}"
+            )
+
+
+# ============================================================
+# LOAD CNN MODEL
+# ============================================================
+def load_cnn_model() -> bool:
+    """
+    ดาวน์โหลด + โหลด CNN เท่านั้น
+    """
+
+    global cnn_model
+    global CNN_MIN
+    global CNN_MAX
+
+    if cnn_model is not None:
+        return True
+
+    if not CNN_FILE_ID:
+
+        print(
+            "⚠️ ไม่มี CNN_MODEL_FILE_ID"
+        )
+
+        return False
+
+    if not ensure_model(
+        CNN_MODEL_PATH,
+        CNN_FILE_ID,
+    ):
+
+        print(
+            "❌ ดาวน์โหลด CNN model ไม่สำเร็จ"
+        )
+
+        return False
+
+    try:
+
+        import tensorflow as tf
+
+        print(
+            "🧠 กำลังโหลด CNN model..."
+        )
+
+        cnn_model = (
+            tf.keras.models.load_model(
+                CNN_MODEL_PATH,
+                compile=False,
+            )
+        )
+
+        # ----------------------------------------------------
+        # Load normalization values
+        # ----------------------------------------------------
+        CNN_MIN = None
+        CNN_MAX = None
+
+        if os.path.exists(
+            MINMAX_PATH
+        ):
+
+            try:
+
+                with open(
+                    MINMAX_PATH,
+                    "r",
+                    encoding="utf-8",
+                ) as f:
+
+                    mm = json.load(
+                        f
+                    )
+
+                CNN_MIN = float(
+                    mm["min"]
+                )
+
+                CNN_MAX = float(
+                    mm["max"]
+                )
+
+                print(
+                    "✅ CNN normalization: "
+                    f"min={CNN_MIN:.3f}, "
+                    f"max={CNN_MAX:.3f}"
+                )
+
+            except Exception as e:
+
+                print(
+                    "⚠️ อ่าน "
+                    f"{MINMAX_PATH} ไม่ได้: {e}"
+                )
+
+        if (
+            CNN_MIN is None
+            or CNN_MAX is None
+        ):
+
+            print(
+                "⚠️ ไม่มี global normalization "
+                "→ ใช้ per-sample normalization"
+            )
+
+        print(
+            "✅ CNN model พร้อมใช้งาน"
+        )
+
+        return True
+
+    except Exception as e:
+
+        cnn_model = None
+
+        print(
+            f"❌ โหลด CNN model ไม่ได้: {e}"
+        )
+
+        return False
+
+
+# ============================================================
+# UNLOAD CNN MODEL
+# ============================================================
+def unload_cnn_model():
+    """
+    ปลด TensorFlow model
+    และลบ CNN file จาก /tmp
+    """
+
+    global cnn_model
+    global CNN_MIN
+    global CNN_MAX
+
+    print(
+        "🧹 กำลัง unload CNN model..."
+    )
+
+    try:
+
+        if cnn_model is not None:
+
+            try:
+
+                import tensorflow as tf
+
+                tf.keras.backend.clear_session()
+
+            except Exception:
+                pass
+
+    except Exception:
+        pass
+
+    cnn_model = None
+
+    CNN_MIN = None
+    CNN_MAX = None
+
+    try:
+
+        import gc
+
+        gc.collect()
+
+    except Exception:
+        pass
+
+    if os.path.exists(
+        CNN_MODEL_PATH
+    ):
+
+        try:
+
+            os.remove(
+                CNN_MODEL_PATH
+            )
+
+            print(
+                "🗑️ ลบ CNN model จาก /tmp แล้ว"
+            )
+
+        except Exception as e:
+
+            print(
+                f"⚠️ ลบ CNN model ไม่สำเร็จ: {e}"
+            )
+
+
+# ============================================================
 # FIRESTORE
 # ============================================================
 def get_firestore():
     """
     Firestore แบบ lazy
-
-    ถ้าไม่มี package หรือ credentials
-    ระบบจะ fallback เป็น in-memory
+    ถ้าไม่มี package / credentials
+    จะ fallback เป็น in-memory
     """
 
     global db
@@ -426,207 +776,14 @@ def get_firestore():
 
 
 # ============================================================
-# LOAD MODELS LAZILY
-# ============================================================
-def load_models():
-    """
-    โหลด RF + CNN เฉพาะเมื่อจำเป็น เช่น /predict
-
-    RF:
-      required
-
-    CNN:
-      optional
-      ถ้าโหลดไม่ได้ -> RF only
-    """
-
-    global rf_model
-    global cnn_model
-
-    global RF_READY
-    global CNN_READY
-
-    global MODEL_LOAD_ERROR
-
-    global CNN_MIN
-    global CNN_MAX
-
-    with MODEL_LOCK:
-
-        # ====================================================
-        # RF
-        # ====================================================
-        if not RF_READY:
-
-            if not ensure_model(
-                RF_MODEL_PATH,
-                RF_FILE_ID,
-            ):
-
-                MODEL_LOAD_ERROR = (
-                    "ไม่สามารถดาวน์โหลด "
-                    "Random Forest model ได้ "
-                    "กรุณาตรวจสอบ RF_MODEL_FILE_ID"
-                )
-
-                print(
-                    f"❌ {MODEL_LOAD_ERROR}"
-                )
-
-            else:
-
-                try:
-
-                    import joblib
-
-                    rf_model = joblib.load(
-                        RF_MODEL_PATH
-                    )
-
-                    RF_READY = True
-
-                    print(
-                        "✅ RF model โหลดสำเร็จ"
-                    )
-
-                except Exception as e:
-
-                    rf_model = None
-
-                    MODEL_LOAD_ERROR = (
-                        f"โหลด RF model ไม่ได้: {e}"
-                    )
-
-                    print(
-                        f"❌ {MODEL_LOAD_ERROR}"
-                    )
-
-        # ====================================================
-        # CNN
-        # ====================================================
-        if not CNN_READY:
-
-            if not CNN_FILE_ID:
-
-                print(
-                    "⚠️ ไม่มี "
-                    "CNN_MODEL_FILE_ID "
-                    "→ ใช้ RF อย่างเดียว"
-                )
-
-            else:
-
-                cnn_available = ensure_model(
-                    CNN_MODEL_PATH,
-                    CNN_FILE_ID,
-                )
-
-                if cnn_available:
-
-                    try:
-
-                        import tensorflow as tf
-
-                        cnn_model = (
-                            tf.keras.models.load_model(
-                                CNN_MODEL_PATH,
-                                compile=False,
-                            )
-                        )
-
-                        CNN_READY = True
-
-                        print(
-                            "✅ CNN model โหลดสำเร็จ "
-                            f"(ensemble ON, "
-                            f"alpha={ENSEMBLE_ALPHA})"
-                        )
-
-                    except Exception as e:
-
-                        cnn_model = None
-
-                        print(
-                            f"⚠️ โหลด CNN ไม่ได้: {e} "
-                            "→ ใช้ RF อย่างเดียว"
-                        )
-
-                else:
-
-                    print(
-                        "⚠️ CNN model "
-                        "ดาวน์โหลดไม่ได้ "
-                        "→ ใช้ RF อย่างเดียว"
-                    )
-
-        # ====================================================
-        # CNN NORMALIZATION
-        # ====================================================
-        if (
-            CNN_READY
-            and CNN_MIN is None
-            and CNN_MAX is None
-            and os.path.exists(
-                MINMAX_PATH
-            )
-        ):
-
-            try:
-
-                with open(
-                    MINMAX_PATH,
-                    "r",
-                    encoding="utf-8",
-                ) as f:
-
-                    mm = json.load(f)
-
-                CNN_MIN = float(
-                    mm["min"]
-                )
-
-                CNN_MAX = float(
-                    mm["max"]
-                )
-
-                print(
-                    "✅ CNN normalization: "
-                    f"min={CNN_MIN:.3f}, "
-                    f"max={CNN_MAX:.3f}"
-                )
-
-            except Exception as e:
-
-                print(
-                    f"⚠️ อ่าน "
-                    f"{MINMAX_PATH} ไม่ได้: {e} "
-                    "→ fallback per-sample normalize"
-                )
-
-        elif (
-            CNN_READY
-            and CNN_MIN is None
-            and CNN_MAX is None
-        ):
-
-            print(
-                "⚠️ ไม่พบ "
-                "cough_min_max.json "
-                "→ fallback per-sample normalize"
-            )
-
-    return RF_READY, CNN_READY
-
-
-# ============================================================
-# HISTORY HELPERS
+# HISTORY
 # ============================================================
 def save_history(
     record: dict,
 ):
     """
     เก็บ in-memory เสมอ
-    และลองเขียน Firestore ถ้ามี
+    และเขียน Firestore ถ้ามี
     """
 
     with HISTORY_LOCK:
@@ -635,7 +792,9 @@ def save_history(
             record
         )
 
-    firestore_db = get_firestore()
+    firestore_db = (
+        get_firestore()
+    )
 
     if firestore_db is not None:
 
@@ -658,11 +817,13 @@ def load_history(
     limit: int = 100,
 ) -> list:
     """
-    อ่าน Firestore ก่อน
+    Firestore ก่อน
     ถ้าไม่ได้ -> in-memory
     """
 
-    firestore_db = get_firestore()
+    firestore_db = (
+        get_firestore()
+    )
 
     if firestore_db is not None:
 
@@ -712,21 +873,25 @@ def prepare_cnn_input(
     wav_path: str,
 ):
     """
-    สกัด mel-spectrogram
+    สกัด Mel-spectrogram
     -> (1, 128, 128, 1)
+
+    ใช้ pipeline เดิมของ cnn_extract.py
     """
 
     import numpy as np
+
     from cnn_extract import (
         extract_features_cnn,
     )
 
-    feat = extract_features_cnn(
-        wav_path
+    feat = (
+        extract_features_cnn(
+            wav_path
+        )
     )
 
     if feat is None:
-
         return None
 
     cols = IMAGE_SHAPE[1]
@@ -760,7 +925,7 @@ def prepare_cnn_input(
         )
 
     # --------------------------------------------------------
-    # Normalize
+    # Global normalization
     # --------------------------------------------------------
     if (
         CNN_MIN is not None
@@ -781,6 +946,9 @@ def prepare_cnn_input(
             1.0,
         )
 
+    # --------------------------------------------------------
+    # Fallback per-sample normalization
+    # --------------------------------------------------------
     else:
 
         fmin = float(
@@ -817,40 +985,158 @@ def preprocess_wav(
     path: str,
 ) -> None:
     """
-    trim ความเงียบหัว-ท้าย
-    + peak normalization
+    Peak-normalize + simple silence trim
+
+    ไม่ใช้ librosa ที่นี่
+    เพื่อหลีกเลี่ยงปัญหา librosa __init__.pyi
+    บน Vercel
     """
 
     try:
 
-        import librosa
         import numpy as np
         import soundfile as sf
 
-        y, sr = librosa.load(
+        y, sr = sf.read(
             path,
-            sr=None,
-            mono=True,
+            always_2d=False,
         )
 
-        if (
-            y is None
-            or len(y) == 0
-        ):
+        # ----------------------------------------------------
+        # Stereo -> mono
+        # ----------------------------------------------------
+        if getattr(
+            y,
+            "ndim",
+            1,
+        ) > 1:
 
+            y = np.mean(
+                y,
+                axis=1,
+            )
+
+        y = np.asarray(
+            y,
+            dtype=np.float32,
+        )
+
+        if y.size == 0:
             return
 
-        y_trim, _ = (
-            librosa.effects.trim(
-                y,
-                top_db=TRIM_TOP_DB,
+        # ----------------------------------------------------
+        # Peak normalize
+        # ----------------------------------------------------
+        peak = float(
+            np.max(
+                np.abs(y)
             )
         )
 
-        if len(y_trim) > 0:
+        if peak > 0:
 
-            y = y_trim
+            y = y / peak
 
+        # ----------------------------------------------------
+        # Simple RMS-based silence trim
+        # roughly corresponds to 30 dB threshold
+        # ----------------------------------------------------
+        frame_length = 2048
+        hop_length = 512
+
+        if len(y) > frame_length:
+
+            rms_values = []
+
+            for start in range(
+                0,
+                len(y) - frame_length + 1,
+                hop_length,
+            ):
+
+                frame = y[
+                    start:
+                    start
+                    + frame_length
+                ]
+
+                rms = np.sqrt(
+                    np.mean(
+                        frame * frame
+                    )
+                    + 1e-12
+                )
+
+                rms_values.append(
+                    rms
+                )
+
+            if rms_values:
+
+                rms_values = np.asarray(
+                    rms_values,
+                    dtype=np.float32,
+                )
+
+                max_rms = float(
+                    np.max(
+                        rms_values
+                    )
+                )
+
+                threshold = (
+                    max_rms
+                    * (
+                        10.0
+                        ** (
+                            -TRIM_TOP_DB
+                            / 20.0
+                        )
+                    )
+                )
+
+                active = np.where(
+                    rms_values
+                    >= threshold
+                )[0]
+
+                if active.size > 0:
+
+                    start_frame = int(
+                        active[0]
+                    )
+
+                    end_frame = int(
+                        active[-1]
+                    )
+
+                    start_sample = (
+                        start_frame
+                        * hop_length
+                    )
+
+                    end_sample = min(
+                        len(y),
+                        (
+                            end_frame
+                            * hop_length
+                        )
+                        + frame_length,
+                    )
+
+                    if (
+                        end_sample
+                        > start_sample
+                    ):
+
+                        y = y[
+                            start_sample:
+                            end_sample
+                        ]
+
+        # ----------------------------------------------------
+        # Final normalize
+        # ----------------------------------------------------
         peak = float(
             np.max(
                 np.abs(y)
@@ -876,132 +1162,230 @@ def preprocess_wav(
 
 
 # ============================================================
-# ENSEMBLE
+# ENSEMBLE PREDICTION
 # ============================================================
 def predict_ensemble(
     wav_path: str,
 ) -> dict:
     """
-    Soft-voting ensemble
+    CNN + RF soft-voting ensemble
 
-    CNN = 50%
-    RF  = 50%
+    Memory strategy:
 
-    หาก CNN ใช้ไม่ได้:
-      -> RF only
+        RF download
+        ↓
+        RF load
+        ↓
+        RF inference
+        ↓
+        RF unload
+        ↓
+        CNN download
+        ↓
+        CNN load
+        ↓
+        CNN inference
+        ↓
+        CNN unload
+        ↓
+        50/50 ensemble
+
+    ไม่เก็บ RF + CNN model ไว้พร้อมกัน
     """
 
     import numpy as np
-    from rf_extract import (
-        extract_features,
-    )
 
-    rf_ready, cnn_ready = (
-        load_models()
-    )
+    p_rf = None
+    p_cnn = None
 
-    # --------------------------------------------------------
-    # RF จำเป็น
-    # --------------------------------------------------------
-    if not rf_ready:
+    # ========================================================
+    # RF
+    # ========================================================
+    with MODEL_LOCK:
 
-        raise RuntimeError(
-            MODEL_LOAD_ERROR
-            or
-            "Random Forest model "
-            "ไม่พร้อมใช้งาน"
-        )
+        if not load_rf_model():
 
-    # --------------------------------------------------------
-    # RF prediction
-    # --------------------------------------------------------
-    feat_rf, err = (
-        extract_features(
-            wav_path
-        )
-    )
-
-    if feat_rf is None:
-
-        raise RuntimeError(
-            f"feature extraction failed: {err}"
-        )
-
-    p_rf = (
-        rf_model.predict_proba(
-            feat_rf.reshape(
-                1,
-                -1,
+            raise RuntimeError(
+                MODEL_LOAD_ERROR
+                or
+                "Random Forest model "
+                "ไม่พร้อมใช้งาน"
             )
-        )[0]
-    )
-
-    # --------------------------------------------------------
-    # CNN
-    # --------------------------------------------------------
-    if cnn_ready:
 
         try:
 
-            x_cnn = (
-                prepare_cnn_input(
+            from rf_extract import (
+                extract_features,
+            )
+
+            print(
+                "🔬 กำลังสกัด RF features..."
+            )
+
+            feat_rf, err = (
+                extract_features(
                     wav_path
                 )
             )
 
-            if x_cnn is not None:
+            if feat_rf is None:
 
-                p_cnn = (
-                    cnn_model.predict(
-                        x_cnn,
-                        verbose=0,
-                    )[0]
+                raise RuntimeError(
+                    "RF feature extraction failed: "
+                    f"{err}"
                 )
 
-                # ============================================
-                # SOFT VOTING
-                # ============================================
-                p_ens = (
-                    ENSEMBLE_ALPHA
-                    * p_cnn
-                    +
-                    (
-                        1
-                        - ENSEMBLE_ALPHA
+            print(
+                "🤖 กำลังทำนายด้วย RF..."
+            )
+
+            p_rf = (
+                rf_model.predict_proba(
+                    feat_rf.reshape(
+                        1,
+                        -1,
                     )
-                    * p_rf
+                )[0]
+            )
+
+            p_rf = np.asarray(
+                p_rf,
+                dtype=np.float32,
+            )
+
+            print(
+                f"✅ RF prediction เสร็จ: "
+                f"{p_rf.tolist()}"
+            )
+
+        finally:
+
+            # ----------------------------------------------
+            # สำคัญ: ปลด RF ก่อนโหลด CNN
+            # ----------------------------------------------
+            unload_rf_model()
+
+
+    # ========================================================
+    # CNN
+    # ========================================================
+    with MODEL_LOCK:
+
+        if not load_cnn_model():
+
+            print(
+                "⚠️ CNN ไม่พร้อม "
+                "→ fallback เป็น RF only"
+            )
+
+            p_ens = p_rf
+            mode = "rf_only"
+
+        else:
+
+            try:
+
+                print(
+                    "🔬 กำลังสกัด CNN features..."
                 )
 
-                mode = "ensemble"
+                x_cnn = (
+                    prepare_cnn_input(
+                        wav_path
+                    )
+                )
 
-            else:
+                if x_cnn is None:
+
+                    print(
+                        "⚠️ CNN feature extraction failed "
+                        "→ fallback เป็น RF only"
+                    )
+
+                    p_ens = p_rf
+
+                    mode = (
+                        "rf_only("
+                        "cnn_feat_failed)"
+                    )
+
+                else:
+
+                    print(
+                        "🧠 กำลังทำนายด้วย CNN..."
+                    )
+
+                    p_cnn = (
+                        cnn_model.predict(
+                            x_cnn,
+                            verbose=0,
+                        )[0]
+                    )
+
+                    p_cnn = np.asarray(
+                        p_cnn,
+                        dtype=np.float32,
+                    )
+
+                    print(
+                        f"✅ CNN prediction เสร็จ: "
+                        f"{p_cnn.tolist()}"
+                    )
+
+                    # ----------------------------------------
+                    # EXACT 50/50 SOFT VOTING
+                    # ----------------------------------------
+                    p_ens = (
+                        ENSEMBLE_ALPHA
+                        * p_cnn
+                        +
+                        (
+                            1
+                            - ENSEMBLE_ALPHA
+                        )
+                        * p_rf
+                    )
+
+                    mode = "ensemble"
+
+                    print(
+                        "✅ Ensemble 50/50 สำเร็จ"
+                    )
+
+            except Exception as e:
+
+                print(
+                    f"⚠️ CNN inference failed: {e}"
+                )
+
+                traceback.print_exc()
 
                 p_ens = p_rf
 
                 mode = (
                     "rf_only("
-                    "cnn_feat_failed)"
+                    "cnn_failed)"
                 )
 
-        except Exception as e:
+            finally:
 
-            print(
-                f"⚠️ CNN inference failed: {e}"
-            )
+                # ----------------------------------------------
+                # ปลด CNN
+                # ----------------------------------------------
+                unload_cnn_model()
 
-            p_ens = p_rf
+    # ========================================================
+    # Safety check
+    # ========================================================
+    if p_ens is None:
 
-            mode = "rf_only(cnn_failed)"
+        raise RuntimeError(
+            "ไม่สามารถสร้าง prediction probability ได้"
+        )
 
-    else:
-
-        p_ens = p_rf
-
-        mode = "rf_only"
-
-    # --------------------------------------------------------
-    # Result
-    # --------------------------------------------------------
+    # ========================================================
+    # RESULT
+    # ========================================================
     pred_idx = int(
         np.argmax(
             p_ens
@@ -1026,10 +1410,11 @@ def predict_ensemble(
         {
             "label": label_name,
             "score": float(
-                prob
+                probability
             ),
         }
-        for label_name, prob
+        for label_name,
+        probability
         in zip(
             LABELS,
             p_ens,
@@ -1156,34 +1541,51 @@ def i18n_js():
 )
 def status():
 
+    # --------------------------------------------------------
+    # ไม่โหลด model
+    # ไม่ต่อ Firestore
+    # เพื่อให้ health check เบาที่สุด
+    # --------------------------------------------------------
+    if (
+        rf_model is not None
+        and cnn_model is not None
+    ):
+
+        model_state = "ensemble"
+
+    elif rf_model is not None:
+
+        model_state = "rf_loaded"
+
+    elif cnn_model is not None:
+
+        model_state = "cnn_loaded"
+
+    else:
+
+        model_state = "not_loaded"
+
     return jsonify({
 
         "message":
             "Smart Cough Detection API is running 🚀",
 
         "model":
-            (
-                "ensemble"
-                if RF_READY
-                and CNN_READY
-                else
-                "rf_only"
-                if RF_READY
-                else
-                "not_loaded"
-            ),
+            model_state,
 
         "rf_ready":
-            RF_READY,
+            rf_model is not None,
 
         "cnn_ready":
-            CNN_READY,
+            cnn_model is not None,
 
         "alpha_cnn":
             (
                 ENSEMBLE_ALPHA
-                if RF_READY
-                and CNN_READY
+                if (
+                    rf_model is not None
+                    and cnn_model is not None
+                )
                 else None
             ),
 
@@ -1222,10 +1624,13 @@ def predict():
                 "ไม่พบไฟล์เสียงในคำขอ"
         }), 400
 
-    audio_file = request.files[
-        "file"
-    ]
+    audio_file = (
+        request.files["file"]
+    )
 
+    # --------------------------------------------------------
+    # Unique temporary filename
+    # --------------------------------------------------------
     original_name = secure_filename(
         audio_file.filename
         or "cough.wav"
@@ -1253,7 +1658,7 @@ def predict():
     try:
 
         # ====================================================
-        # READ FILE
+        # READ AUDIO
         # ====================================================
         audio_bytes = (
             audio_file.read()
@@ -1267,26 +1672,48 @@ def predict():
             }), 400
 
         # ----------------------------------------------------
-        # Lazy import
+        # soundfile
         # ----------------------------------------------------
         import soundfile as sf
 
-        audio_data, sr = (
-            sf.read(
-                io.BytesIO(
-                    audio_bytes
+        try:
+
+            audio_data, sr = (
+                sf.read(
+                    io.BytesIO(
+                        audio_bytes
+                    )
                 )
             )
-        )
+
+        except Exception as e:
+
+            print(
+                f"❌ อ่านไฟล์เสียงไม่ได้: {e}"
+            )
+
+            return jsonify({
+                "error":
+                    "ไม่สามารถอ่านไฟล์เสียงได้",
+                "error_type":
+                    type(e).__name__,
+                "detail":
+                    str(e),
+            }), 400
 
         # ====================================================
-        # WRITE TEMP WAV
+        # WRITE WAV TO /tmp
         # ====================================================
         sf.write(
             filepath,
             audio_data,
             sr,
             format="WAV",
+        )
+
+        print(
+            f"✅ รับไฟล์เสียงแล้ว: "
+            f"{os.path.basename(filepath)}"
         )
 
         # ====================================================
@@ -1297,7 +1724,7 @@ def predict():
         )
 
         # ====================================================
-        # PREDICT
+        # PREDICTION
         # ====================================================
         result = predict_ensemble(
             filepath
@@ -1345,23 +1772,56 @@ def predict():
             record
         )
 
+        print(
+            "✅ Prediction สำเร็จ"
+        )
+
         return jsonify(
             result
         ), 200
 
     except Exception as e:
-      import traceback
-      print("❌ Prediction error:")
-      traceback.print_exc()
 
-      return jsonify({
-        "error": str(e),
-        "error_type": type(e).__name__,
-        "stage": "predict"
-      }), 500
+        print(
+            "\n========== "
+            "PREDICTION ERROR "
+            "=========="
+        )
+
+        print(
+            "ERROR TYPE:",
+            type(e).__name__,
+        )
+
+        print(
+            "ERROR:",
+            str(e),
+        )
+
+        traceback.print_exc()
+
+        print(
+            "================================\n"
+        )
+
+        return jsonify({
+
+            "error":
+                str(e),
+
+            "error_type":
+                type(e).__name__,
+
+            "stage":
+                "predict",
+
+        }), 500
 
     finally:
 
+        # ====================================================
+        # DELETE TEMP AUDIO
+        # ====================================================
         if os.path.exists(
             filepath
         ):
@@ -1405,7 +1865,7 @@ def history():
 
 
 # ============================================================
-# LATEST
+# LATEST RESULT
 # ============================================================
 @app.route(
     "/device/latest",
@@ -1481,6 +1941,11 @@ def device_result():
         }), 200
 
     except Exception as e:
+
+        print(
+            "❌ device_result error:",
+            e,
+        )
 
         return jsonify({
             "error":
