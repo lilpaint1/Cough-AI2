@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="th" data-doc-title="doc.dash.title">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>CoughAI — ประวัติการวิเคราะห์</title>
+    <!-- Open Graph / Link preview -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="CoughAI">
+    <meta property="og:title" content="CoughAI — แดชบอร์ดผลวิเคราะห์">
+    <meta property="og:description" content="ประวัติผลคัดกรองเสียงไอด้วย AI แบบเรียลไทม์">
+    <meta property="og:image" content="https://smart-cough-detection-system-985046969554.asia-southeast3.run.app/og-cover.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:url" content="https://smart-cough-detection-system-985046969554.asia-southeast3.run.app/dashboard">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:image" content="https://smart-cough-detection-system-985046969554.asia-southeast3.run.app/og-cover.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&family=DM+Serif+Display&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <script>
+        // ตั้งธีมก่อน paint เพื่อกันจอกระพริบ
+        (function(){try{var t=localStorage.getItem('coughai-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();
+        function toggleTheme(){var el=document.documentElement,cur=el.getAttribute('data-theme');if(!cur)cur=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';var n=cur==='dark'?'light':'dark';el.setAttribute('data-theme',n);try{localStorage.setItem('coughai-theme',n);}catch(e){}}
+    </script>
+    <script src="i18n.js"></script>
+    <style>
+        /* หมายเหตุ: .app-nav / .theme-toggle ย้ายไปไว้ใน style.css แล้ว (ที่เดียว) */
+
+        /* ── Layout ── */
+        .dash-wrap { max-width: 1080px; margin: 0 auto; padding: 32px 20px 80px; }
+
+        .dash-head {
+            display: flex; justify-content: space-between; align-items: flex-end;
+            gap: 16px; flex-wrap: wrap; margin-bottom: 28px;
+        }
+        .dash-eyebrow {
+            font-size: 0.78rem; font-weight: 600; letter-spacing: 0.04em;
+            text-transform: uppercase; color: var(--teal); margin-bottom: 6px;
+        }
+        .dash-title {
+            font-family: 'DM Serif Display', serif; font-weight: 400;
+            font-size: 2.3rem; letter-spacing: -0.01em; color: var(--text1); line-height: 1.1;
+        }
+        .dash-sub { color: var(--text2); font-size: 0.95rem; margin-top: 8px; }
+
+        .dash-actions { display: flex; align-items: center; gap: 10px; }
+        .live-badge {
+            display: inline-flex; align-items: center; gap: 8px;
+            background: var(--card); border: 1px solid var(--sep);
+            border-radius: 999px; padding: 8px 14px;
+            font-size: 0.84rem; color: var(--text2); box-shadow: var(--shadow-sm);
+        }
+        .live-dot {
+            width: 8px; height: 8px; border-radius: 50%; background: var(--text3);
+            transition: background 0.3s;
+        }
+        .live-dot.on {
+            background: var(--teal);
+            box-shadow: 0 0 0 4px rgba(22,163,74,0.16);
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%,100% { box-shadow: 0 0 0 4px rgba(22,163,74,0.16); }
+            50%     { box-shadow: 0 0 0 8px rgba(22,163,74,0.04); }
+        }
+        .refresh-btn {
+            display: inline-flex; align-items: center; gap: 7px;
+            background: var(--card); border: 1px solid var(--sep);
+            border-radius: 999px; padding: 8px 15px; cursor: pointer;
+            font-family: inherit; font-size: 0.84rem; font-weight: 500; color: var(--text1);
+            box-shadow: var(--shadow-sm); transition: background 0.18s;
+        }
+        .refresh-btn:hover { background: var(--card2); }
+        .refresh-btn svg { transition: transform 0.5s var(--ease-out); }
+        .refresh-btn.spin svg { transform: rotate(360deg); }
+
+        /* ── Stats ── */
+        .stat-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 14px; margin-bottom: 28px;
+        }
+        .stat-card {
+            background: var(--card); border: 1px solid var(--sep);
+            border-radius: var(--r-card); padding: 18px 20px; box-shadow: var(--shadow-sm);
+        }
+        .stat-label {
+            font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.05em;
+            color: var(--text2); font-weight: 600;
+        }
+        .stat-value {
+            font-size: 2rem; font-weight: 600; color: var(--text1);
+            margin-top: 4px; letter-spacing: -0.02em; font-variant-numeric: tabular-nums;
+        }
+        .stat-value.danger { color: var(--red); }
+        .stat-value.warn   { color: var(--yellow); }
+        .stat-value.ok     { color: var(--teal); }
+
+        /* ── Latest card ── */
+        .latest-card {
+            background: var(--card); border: 1px solid var(--sep);
+            border-radius: 20px; padding: 26px; margin-bottom: 28px;
+            box-shadow: var(--shadow-md); display: none;
+        }
+        .latest-head {
+            display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px;
+        }
+        .latest-title {
+            font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.07em;
+            color: var(--text2); font-weight: 600;
+        }
+        .latest-time { font-size: 0.82rem; color: var(--text3); font-variant-numeric: tabular-nums; }
+        .latest-body {
+            display: grid; grid-template-columns: 1fr 1.4fr; gap: 32px; align-items: center;
+        }
+        @media (max-width: 700px) { .latest-body { grid-template-columns: 1fr; gap: 22px; } }
+        .latest-class {
+            font-family: 'DM Serif Display', serif; font-weight: 400;
+            font-size: 2.5rem; letter-spacing: -0.01em; margin-bottom: 6px; line-height: 1.05;
+        }
+        .latest-class.covid       { color: var(--red); }
+        .latest-class.symptomatic { color: var(--yellow); }
+        .latest-class.healthy     { color: var(--teal); }
+        .latest-conf { font-size: 0.92rem; color: var(--text2); }
+        .risk-chip {
+            display: inline-flex; align-items: center; gap: 6px;
+            padding: 5px 12px; border-radius: 999px;
+            font-size: 0.8rem; font-weight: 600; margin-top: 12px;
+        }
+        .risk-chip.HIGH   { background: var(--red-dim);    color: var(--red); }
+        .risk-chip.MEDIUM { background: var(--yellow-dim); color: var(--yellow); }
+        .risk-chip.LOW    { background: var(--teal-dim);   color: var(--teal); }
+
+        .prob-list { display: flex; flex-direction: column; gap: 11px; }
+        .prob-row {
+            display: grid; grid-template-columns: 92px 1fr 54px; gap: 12px;
+            align-items: center; font-size: 0.88rem;
+        }
+        .prob-name { color: var(--text2); }
+        .prob-track { height: 8px; background: var(--track); border-radius: 999px; overflow: hidden; }
+        .prob-fill { height: 100%; border-radius: 999px; width: 0; transition: width 0.7s var(--ease-out); }
+        .prob-fill.covid       { background: var(--red); }
+        .prob-fill.symptomatic { background: var(--yellow); }
+        .prob-fill.healthy     { background: var(--teal); }
+        .prob-pct { font-variant-numeric: tabular-nums; color: var(--text1); font-weight: 500; text-align: right; }
+
+        /* ── History ── */
+        .hist-title {
+            font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.07em;
+            color: var(--text2); font-weight: 600; margin-bottom: 12px;
+        }
+        .hist-list {
+            background: var(--card); border: 1px solid var(--sep);
+            border-radius: var(--r-card); overflow: hidden; box-shadow: var(--shadow-sm);
+        }
+        .hist-row {
+            display: grid; grid-template-columns: 1.1fr 1.4fr 0.7fr; gap: 14px;
+            padding: 14px 20px; border-bottom: 1px solid var(--sep);
+            font-size: 0.9rem; align-items: center;
+        }
+        .hist-row:last-child { border-bottom: none; }
+        .hist-row.head {
+            font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em;
+            color: var(--text3); background: var(--hover); font-weight: 600;
+        }
+        .hist-class { display: inline-flex; align-items: center; gap: 8px; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+        .dot.covid { background: var(--red); }
+        .dot.symptomatic { background: var(--yellow); }
+        .dot.healthy { background: var(--teal); }
+        .hist-time { color: var(--text2); font-variant-numeric: tabular-nums; }
+        .hist-risk { text-align: right; }
+        .mini-chip {
+            display: inline-block; padding: 3px 10px; border-radius: 999px;
+            font-size: 0.72rem; font-weight: 600;
+        }
+        .mini-chip.HIGH   { background: var(--red-dim);    color: var(--red); }
+        .mini-chip.MEDIUM { background: var(--yellow-dim); color: var(--yellow); }
+        .mini-chip.LOW    { background: var(--teal-dim);   color: var(--teal); }
+
+        .hist-empty { padding: 48px 24px; text-align: center; color: var(--text3); }
+        .hist-empty p { font-size: 0.95rem; margin-bottom: 14px; }
+        .hist-empty a {
+            display: inline-block; background: var(--teal); color: #fff;
+            text-decoration: none; font-weight: 600; font-size: 0.9rem;
+            padding: 10px 20px; border-radius: 999px;
+            box-shadow: 0 4px 12px rgba(22,163,74,0.3);
+        }
+
+        @media (max-width: 560px) {
+            .dash-title { font-size: 1.9rem; }
+            .hist-row { grid-template-columns: 1fr auto; }
+            .hist-row .hist-time { grid-column: 1 / -1; order: 3; font-size: 0.8rem; color: var(--text3); }
+        }
+    </style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav class="app-nav">
+    <a href="/" class="app-nav-logo">
+        <div class="app-nav-icon">
+            <svg width="14" height="9" viewBox="0 0 36 20" fill="none">
+                <path d="M0 10 H6 L9 2 L12 18 L15 6 L18 14 L21 10 H36"
+                      stroke="white" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </div>
+        <span>CoughAI</span>
+    </a>
+    <div class="app-nav-links">
+        <a href="/" class="app-nav-link" data-i18n="nav.home">หน้าแรก</a>
+        <a href="/app" class="app-nav-link" data-i18n="nav.app">แอป</a>
+        <a href="/dashboard" class="app-nav-link active" data-i18n="nav.dashboard">แดชบอร์ด</a>
+        <button class="lang-toggle" type="button" onclick="toggleLang()" aria-label="สลับภาษา" title="TH / EN">
+            <span class="lang-label">EN</span>
+        </button>
+        <button class="theme-toggle" type="button" onclick="toggleTheme()" aria-label="สลับธีมมืด/สว่าง" title="สลับธีม">
+            <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+            <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+        </button>
+    </div>
+</nav>
+
+<div class="dash-wrap">
+
+    <div class="dash-head">
+        <div>
+            <p class="dash-eyebrow" data-i18n="dash.eyebrow">ประวัติการตรวจ</p>
+            <h1 class="dash-title" data-i18n="dash.title">แดชบอร์ดผลวิเคราะห์</h1>
+            <p class="dash-sub" data-i18n="dash.sub">ผลการวิเคราะห์เสียงไอทั้งหมดที่อัด/อัปโหลดผ่านเว็บ</p>
+        </div>
+        <div class="dash-actions">
+            <span class="live-badge"><span class="live-dot" id="live-dot"></span><span id="live-text" data-i18n="dash.live.connecting">กำลังเชื่อมต่อ…</span></span>
+            <button class="refresh-btn" id="refresh-btn">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M23 4v6h-6"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+                </svg>
+                <span data-i18n="dash.refresh">รีเฟรช</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="stat-grid">
+        <div class="stat-card">
+            <div class="stat-label" data-i18n="dash.stat.total">ตรวจทั้งหมด</div>
+            <div class="stat-value" id="stat-total">—</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label" data-i18n="dash.stat.high">เสี่ยงสูง</div>
+            <div class="stat-value danger" id="stat-high">—</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label" data-i18n="dash.stat.med">เฝ้าระวัง</div>
+            <div class="stat-value warn" id="stat-med">—</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label" data-i18n="dash.stat.low">ปกติ</div>
+            <div class="stat-value ok" id="stat-low">—</div>
+        </div>
+    </div>
+
+    <!-- Latest -->
+    <div class="latest-card" id="latest-card">
+        <div class="latest-head">
+            <span class="latest-title" data-i18n="dash.latest">ผลล่าสุด</span>
+            <span class="latest-time" id="latest-time">—</span>
+        </div>
+        <div class="latest-body">
+            <div>
+                <div class="latest-class" id="latest-class">—</div>
+                <div class="latest-conf" id="latest-conf">—</div>
+                <span class="risk-chip LOW" id="latest-risk">ปกติ</span>
+            </div>
+            <div class="prob-list" id="latest-probs"></div>
+        </div>
+    </div>
+
+    <!-- History -->
+    <div>
+        <h3 class="hist-title" data-i18n="dash.hist.all">ประวัติทั้งหมด</h3>
+        <div class="hist-list" id="hist-list">
+            <div class="hist-empty"><p data-i18n="dash.loading">กำลังโหลด…</p></div>
+        </div>
+    </div>
+</div>
+
+<script src="dashboard.js"></script>
+</body>
+</html>

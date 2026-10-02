@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="th" data-doc-title="doc.home.title">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>CoughAI — คัดกรองสุขภาพทางเดินหายใจ</title>
+    <!-- Open Graph / Link preview (รูปปกตอนแชร์ลิงก์) -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="CoughAI">
+    <meta property="og:title" content="CoughAI — คัดกรองสุขภาพทางเดินหายใจด้วย AI">
+    <meta property="og:description" content="วิเคราะห์เสียงไอด้วย AI รู้ผลใน 5 วินาที · คัดกรองโควิด/อาการทางเดินหายใจ · ฟรี ไม่ต้องติดตั้งแอป">
+    <meta property="og:image" content="https://smart-cough-detection-system-985046969554.asia-southeast3.run.app/og-cover.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:url" content="https://smart-cough-detection-system-985046969554.asia-southeast3.run.app/">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="CoughAI — คัดกรองสุขภาพทางเดินหายใจด้วย AI">
+    <meta name="twitter:description" content="วิเคราะห์เสียงไอด้วย AI รู้ผลใน 5 วินาที">
+    <meta name="twitter:image" content="https://smart-cough-detection-system-985046969554.asia-southeast3.run.app/og-cover.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="homepage.css">
+    <script>
+        // ตั้งธีมก่อน paint เพื่อกันจอกระพริบ
+        (function(){try{var t=localStorage.getItem('coughai-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();
+        function toggleTheme(){var el=document.documentElement,cur=el.getAttribute('data-theme');if(!cur)cur=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';var n=cur==='dark'?'light':'dark';el.setAttribute('data-theme',n);try{localStorage.setItem('coughai-theme',n);}catch(e){}}
+    </script>
+    <script src="i18n.js"></script>
+</head>
+<body>
+
+<!-- ══ NAV ══ -->
+<nav class="nav" id="nav">
+    <div class="nav-inner">
+        <a href="/" class="nav-logo">
+            <div class="nav-logo-icon">
+                <svg width="16" height="10" viewBox="0 0 36 20" fill="none">
+                    <path d="M0 10 H6 L9 2 L12 18 L15 6 L18 14 L21 10 H36"
+                          stroke="white" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <span>CoughAI</span>
+        </a>
+        <div class="nav-right">
+            <button class="lang-toggle" type="button" onclick="toggleLang()" aria-label="Switch language" title="TH / EN">
+                <span class="lang-label">EN</span>
+            </button>
+            <button class="theme-toggle" type="button" onclick="toggleTheme()" aria-label="Toggle dark mode" title="Toggle theme">
+                <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+            </button>
+            <a href="/app" class="nav-cta" data-i18n="home.cta">เริ่มวิเคราะห์ →</a>
+        </div>
+    </div>
+</nav>
+
+<!-- ══ HERO ══ -->
+<section class="hero">
+    <!-- Ambient background -->
+    <div class="hero-ambient">
+        <div class="ambient-blob blob-1"></div>
+        <div class="ambient-blob blob-2"></div>
+        <div class="ambient-blob blob-3"></div>
+        <div class="hero-grid"></div>
+    </div>
+
+    <div class="hero-content">
+        <!-- Pill badge -->
+        <div class="hero-badge reveal-1">
+            <span class="badge-dot"></span>
+            <span data-i18n="home.badge">ขับเคลื่อนด้วย AI · วิเคราะห์เรียลไทม์</span>
+        </div>
+
+        <!-- Headline -->
+        <h1 class="hero-headline reveal-2" data-i18n-html="home.headline">
+            เปลี่ยนเสียงไอของคุณ<br>
+            ให้เป็น <em>สัญญาณสุขภาพล่วงหน้า</em>
+        </h1>
+
+        <!-- Subheadline -->
+        <p class="hero-sub reveal-3" data-i18n-html="home.sub">
+            AI วิเคราะห์เสียงไอของคุณในไม่กี่วินาที<br class="desktop-br">เพื่อประเมินความเสี่ยงทางเดินหายใจ — ไม่ต้องไปคลินิก
+        </p>
+
+        <!-- CTA -->
+        <div class="hero-actions reveal-4">
+            <a href="/app" class="btn-primary">
+                <span data-i18n="home.start">เริ่มวิเคราะห์</span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
+            </a>
+            <a href="#how" class="btn-ghost" data-i18n="home.how">วิธีใช้งาน</a>
+        </div>
+
+        <!-- Trust badges -->
+        <div class="trust-row reveal-5">
+            <span class="trust-badge">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                </svg>
+                <span data-i18n="home.trust.privacy">ความเป็นส่วนตัวมาก่อน</span>
+            </span>
+            <span class="trust-badge">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <circle cx="12" cy="12" r="10"/>
+                    <polyline points="12 6 12 12 16 14"/>
+                </svg>
+                <span data-i18n="home.trust.fast">ผลใน &lt;5 วิ</span>
+            </span>
+            <span class="trust-badge">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/>
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                </svg>
+                <span data-i18n="home.trust.noupload">ไม่ต้องอัปโหลด</span>
+            </span>
+        </div>
+    </div>
+
+    <!-- Hero visual -->
+    <div class="hero-visual reveal-4">
+        <div class="visual-card">
+            <!-- Waveform animation -->
+            <div class="waveform-wrapper">
+                <div class="waveform-label">
+                    <span class="waveform-dot"></span>
+                    <span data-i18n="home.visual.analyzing">กำลังวิเคราะห์รูปแบบเสียง</span>
+                </div>
+                <div class="waveform">
+                    <div class="wbar" style="--h:30%"></div>
+                    <div class="wbar" style="--h:55%"></div>
+                    <div class="wbar" style="--h:80%"></div>
+                    <div class="wbar" style="--h:45%"></div>
+                    <div class="wbar" style="--h:90%"></div>
+                    <div class="wbar" style="--h:60%"></div>
+                    <div class="wbar" style="--h:75%"></div>
+                    <div class="wbar" style="--h:35%"></div>
+                    <div class="wbar" style="--h:85%"></div>
+                    <div class="wbar" style="--h:50%"></div>
+                    <div class="wbar" style="--h:70%"></div>
+                    <div class="wbar" style="--h:40%"></div>
+                    <div class="wbar" style="--h:95%"></div>
+                    <div class="wbar" style="--h:55%"></div>
+                    <div class="wbar" style="--h:30%"></div>
+                    <div class="wbar" style="--h:65%"></div>
+                    <div class="wbar" style="--h:45%"></div>
+                    <div class="wbar" style="--h:80%"></div>
+                    <div class="wbar" style="--h:60%"></div>
+                    <div class="wbar" style="--h:35%"></div>
+                    <div class="wbar" style="--h:75%"></div>
+                    <div class="wbar" style="--h:50%"></div>
+                    <div class="wbar" style="--h:88%"></div>
+                    <div class="wbar" style="--h:42%"></div>
+                </div>
+            </div>
+
+            <!-- Result preview -->
+            <div class="result-preview">
+                <div class="rp-header">
+                    <div class="rp-icon healthy">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="rp-label" data-i18n="home.visual.diagnosis">ผลการคัดกรอง</p>
+                        <p class="rp-value healthy" data-i18n="label.healthy">สุขภาพดี</p>
+                    </div>
+                    <span class="rp-conf">96.4%</span>
+                </div>
+                <div class="rp-bars">
+                    <div class="rp-bar-row">
+                        <span data-i18n="label.healthy">สุขภาพดี</span>
+                        <div class="rp-track"><div class="rp-fill" style="width:96.4%; background:#22c55e"></div></div>
+                        <span>96.4%</span>
+                    </div>
+                    <div class="rp-bar-row">
+                        <span data-i18n="label.symptomatic">มีอาการ</span>
+                        <div class="rp-track"><div class="rp-fill" style="width:3.1%; background:#eab308"></div></div>
+                        <span>3.1%</span>
+                    </div>
+                    <div class="rp-bar-row">
+                        <span data-i18n="label.covid">โควิด-19</span>
+                        <div class="rp-track"><div class="rp-fill" style="width:0.5%; background:#ef4444"></div></div>
+                        <span>0.5%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Floating chips -->
+        <div class="float-chip chip-a">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#22c55e" stroke-width="2.5">
+                <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            <span data-i18n="home.chip.sound">ตรวจพบเสียง</span>
+        </div>
+        <div class="float-chip chip-b">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6366f1" stroke-width="2.2">
+                <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2v-4M9 21H5a2 2 0 0 1-2-2v-4m0 0h18"/>
+            </svg>
+            <span data-i18n="home.chip.model">โมเดล AI พร้อม</span>
+        </div>
+    </div>
+</section>
+
+<!-- ══ HOW IT WORKS ══ -->
+<section class="how" id="how">
+    <div class="section-inner">
+        <div class="section-eyebrow scroll-reveal" data-i18n="home.how.eyebrow">ขั้นตอนง่าย ๆ</div>
+        <h2 class="section-title scroll-reveal" data-i18n="home.how.title">3 ขั้นตอนสู่ผลวิเคราะห์</h2>
+        <p class="section-sub scroll-reveal" data-i18n="home.how.sub">ไม่ต้องไปหาหมอ ไม่ต้องตรวจแล็บ แค่เสียงของคุณกับ AI ของเรา</p>
+
+        <div class="steps">
+            <div class="step scroll-reveal-stagger" style="--delay:0s">
+                <div class="step-num">01</div>
+                <div class="step-icon">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                        <path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                        <line x1="12" y1="19" x2="12" y2="22"/>
+                    </svg>
+                </div>
+                <h3 class="step-title" data-i18n="home.step1.title">อัดเสียงไอ</h3>
+                <p class="step-desc" data-i18n="home.step1.desc">กดปุ่มอัดแล้วไอตามธรรมชาติใส่ไมโครโฟนประมาณ 5 วินาที หรือจะอัปโหลดไฟล์เสียงที่มีอยู่ก็ได้</p>
+            </div>
+
+            <div class="step-connector scroll-reveal">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
+            </div>
+
+            <div class="step scroll-reveal-stagger" style="--delay:0.1s">
+                <div class="step-num">02</div>
+                <div class="step-icon">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                        <rect x="2" y="3" width="20" height="14" rx="2"/>
+                        <line x1="8" y1="21" x2="16" y2="21"/>
+                        <line x1="12" y1="17" x2="12" y2="21"/>
+                    </svg>
+                </div>
+                <h3 class="step-title" data-i18n="home.step2.title">AI วิเคราะห์รูปแบบ</h3>
+                <p class="step-desc" data-i18n="home.step2.desc">โมเดล Ensemble CNN+RF ของเราสกัดคุณลักษณะเสียงเชิงลึกจากการไอ — ระดับเสียง จังหวะ และการสั่นพ้อง — เพื่อตรวจหาความผิดปกติของทางเดินหายใจ</p>
+            </div>
+
+            <div class="step-connector scroll-reveal">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3">
+                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                </svg>
+            </div>
+
+            <div class="step scroll-reveal-stagger" style="--delay:0.2s">
+                <div class="step-num">03</div>
+                <div class="step-icon">
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                </div>
+                <h3 class="step-title" data-i18n="home.step3.title">รับผลทันที</h3>
+                <p class="step-desc" data-i18n="home.step3.desc">รับผลคัดกรองที่ชัดเจน — สุขภาพดี มีอาการ หรือเสี่ยงโควิด-19 — พร้อมคะแนนความมั่นใจภายในไม่ถึง 5 วินาที</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ══ FEATURES ══ -->
+<section class="features">
+    <div class="section-inner">
+        <div class="features-grid">
+            <div class="feature-card scroll-reveal-stagger" style="--delay:0s">
+                <div class="feature-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                        <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2v-4M9 21H5a2 2 0 0 1-2-2v-4m0 0h18"/>
+                    </svg>
+                </div>
+                <h4 data-i18n="home.feat1.title">การเรียนรู้แบบ Ensemble CNN+RF</h4>
+                <p data-i18n="home.feat1.desc">ผสานการสกัดคุณลักษณะเชิงลึกด้วย CNN เข้ากับการจำแนกด้วย Random Forest ฝึกบนเสียงไอของผู้ติดโควิด-19 ผู้มีอาการ และผู้มีสุขภาพดี</p>
+            </div>
+            <div class="feature-card scroll-reveal-stagger" style="--delay:0.08s">
+                <div class="feature-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                </div>
+                <h4 data-i18n="home.feat2.title">ภายใน 5 วินาที</h4>
+                <p data-i18n="home.feat2.desc">ประมวลผลเสียงและสกัดคุณลักษณะแบบเรียลไทม์ ให้ผลแทบจะทันทีในเบราว์เซอร์ของคุณ</p>
+            </div>
+            <div class="feature-card scroll-reveal-stagger" style="--delay:0.16s">
+                <div class="feature-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                    </svg>
+                </div>
+                <h4 data-i18n="home.feat3.title">รับประกันความเป็นส่วนตัว</h4>
+                <p data-i18n="home.feat3.desc">เสียงถูกประมวลผลแบบเรียลไทม์และไม่ถูกจัดเก็บ การบันทึกของคุณจะถูกลบทันทีหลังวิเคราะห์</p>
+            </div>
+            <div class="feature-card scroll-reveal-stagger" style="--delay:0.24s">
+                <div class="feature-icon">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                        <rect x="5" y="2" width="14" height="20" rx="2"/>
+                        <line x1="12" y1="18" x2="12.01" y2="18"/>
+                    </svg>
+                </div>
+                <h4 data-i18n="home.feat4.title">ใช้ได้ทุกอุปกรณ์</h4>
+                <p data-i18n="home.feat4.desc">รองรับทั้ง iPhone, Android, iPad และเดสก์ท็อปเต็มรูปแบบ ไม่ต้องดาวน์โหลดแอป แค่เปิดเบราว์เซอร์</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ══ DISCLAIMER ══ -->
+<section class="disclaimer">
+    <div class="section-inner">
+        <div class="disclaimer-card scroll-reveal">
+            <div class="disclaimer-icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+            </div>
+            <div>
+                <h4 data-i18n="home.disclaimer.title">ไม่ใช่การวินิจฉัยทางการแพทย์</h4>
+                <p data-i18n="home.disclaimer.desc">CoughAI เป็นเครื่องมือคัดกรองด้วย AI สำหรับการตระหนักรู้เบื้องต้นเท่านั้น ไม่ทดแทนคำแนะนำ การวินิจฉัย หรือการรักษาจากแพทย์ หากมีข้อกังวลด้านสุขภาพควรปรึกษาบุคลากรทางการแพทย์เสมอ</p>
+            </div>
+        </div>
+    </div>
+</section>
+
+<!-- ══ CTA BANNER ══ -->
+<section class="cta-section">
+    <div class="cta-ambient">
+        <div class="cta-blob"></div>
+    </div>
+    <div class="section-inner cta-inner">
+        <h2 class="cta-title scroll-reveal" data-i18n="home.cta2.title">พร้อมตรวจเสียงไอแล้วหรือยัง?</h2>
+        <p class="cta-sub scroll-reveal" data-i18n="home.cta2.sub">ฟรี · ทันที · เป็นส่วนตัว · ไม่ต้องสมัครสมาชิก</p>
+        <a href="/app" class="btn-primary btn-large scroll-reveal">
+            <span data-i18n="home.cta2.btn">เริ่มวิเคราะห์ฟรี</span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <path d="M5 12h14M12 5l7 7-7 7"/>
+            </svg>
+        </a>
+    </div>
+</section>
+
+<!-- ══ FOOTER ══ -->
+<footer class="footer">
+    <div class="footer-inner">
+        <div class="footer-logo">
+            <div class="nav-logo-icon small">
+                <svg width="12" height="8" viewBox="0 0 36 20" fill="none">
+                    <path d="M0 10 H6 L9 2 L12 18 L15 6 L18 14 L21 10 H36"
+                          stroke="white" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <span>CoughAI</span>
+        </div>
+        <p class="footer-note" data-i18n="home.footer">เครื่องมือคัดกรองทางเดินหายใจด้วย AI · ไม่ใช่อุปกรณ์การแพทย์</p>
+    </div>
+</footer>
+
+<script src="homepage.js"></script>
+</body>
+</html>

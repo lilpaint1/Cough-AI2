@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="th" data-doc-title="doc.app.title">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>CoughAI — วิเคราะห์การไอ</title>
+    <!-- Open Graph / Link preview -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="CoughAI">
+    <meta property="og:title" content="CoughAI — วิเคราะห์เสียงไอด้วย AI">
+    <meta property="og:description" content="อัด/อัปโหลดเสียงไอ รู้ผลใน 5 วินาที · คัดกรองโควิด/อาการทางเดินหายใจ">
+    <meta property="og:image" content="https://smart-cough-detection-system-985046969554.asia-southeast3.run.app/og-cover.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:url" content="https://smart-cough-detection-system-985046969554.asia-southeast3.run.app/app">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="CoughAI — วิเคราะห์เสียงไอด้วย AI">
+    <meta name="twitter:image" content="https://smart-cough-detection-system-985046969554.asia-southeast3.run.app/og-cover.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,300&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        /* ── คำแนะนำ + ปุ่ม action (ของใหม่ ใช้โทนเดิม) ── */
+        .reco-block { margin-top: 4px; }
+        .reco-text {
+            font-size: 0.92rem;
+            line-height: 1.6;
+            color: var(--text1, #1c1c1e);
+            margin: 6px 0 0;
+        }
+        .reco-disclaimer {
+            font-size: 0.74rem;
+            line-height: 1.5;
+            color: var(--text3, #9a9a9e);
+            margin: 10px 0 0;
+        }
+        .action-row {
+            display: flex;
+            gap: 10px;
+            margin-top: 16px;
+        }
+        .action-row .action-btn { flex: 1; justify-content: center; }
+        .action-outline {
+            background: transparent;
+            border: 1.5px solid var(--teal, #16a34a);
+            color: var(--teal, #16a34a);
+        }
+        .action-btn svg { flex-shrink: 0; }
+
+        /* ── call picker sheet ── */
+        .call-list { display: flex; flex-direction: column; gap: 8px; margin: 8px 0 14px; }
+        .call-item {
+            display: flex; align-items: center; gap: 12px;
+            padding: 13px 16px; border-radius: 14px;
+            background: rgba(127,127,127,0.06);
+            text-decoration: none; color: var(--text1, #1c1c1e);
+            transition: background 0.18s;
+        }
+        .call-item:active { background: rgba(127,127,127,0.14); }
+        .call-num { font-weight: 600; font-size: 1.05rem; letter-spacing: 0.02em; }
+        .call-desc { font-size: 0.82rem; color: var(--text2, #6a6a6e); }
+        .call-emoji { font-size: 1.3rem; }
+        .custom-call-row { display: flex; gap: 8px; margin-top: 6px; }
+        .custom-call-row input {
+            flex: 1; padding: 12px 14px; border-radius: 12px;
+            border: 1px solid var(--border, rgba(0,0,0,0.1));
+            font-family: inherit; font-size: 0.95rem; outline: none;
+        }
+        .custom-call-row input:focus { border-color: var(--teal, #16a34a); }
+        /* หมายเหตุ: .app-nav / .theme-toggle ย้ายไปไว้ใน style.css แล้ว (ที่เดียว) */
+    </style>
+    <script>
+        // ตั้งธีมก่อน paint เพื่อกันจอกระพริบ (อ่านค่าที่ผู้ใช้เลือกไว้)
+        (function(){try{var t=localStorage.getItem('coughai-theme');if(t)document.documentElement.setAttribute('data-theme',t);}catch(e){}})();
+        function toggleTheme(){var el=document.documentElement,cur=el.getAttribute('data-theme');if(!cur)cur=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';var n=cur==='dark'?'light':'dark';el.setAttribute('data-theme',n);try{localStorage.setItem('coughai-theme',n);}catch(e){}}
+    </script>
+    <script src="i18n.js"></script>
+</head>
+<body>
+
+<!-- ═══ SPLASH ═══ -->
+<div id="splash">
+    <div class="splash-rings">
+        <div class="ring r1"></div>
+        <div class="ring r2"></div>
+        <div class="ring r3"></div>
+    </div>
+    <div class="splash-core">
+        <div class="splash-icon">
+            <svg width="32" height="32" viewBox="0 0 36 20" fill="none">
+                <path d="M0 10 H6 L9 2 L12 18 L15 6 L18 14 L21 10 H36"
+                      stroke="white" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+        </div>
+        <p class="splash-name">CoughAI</p>
+    </div>
+</div>
+
+<!-- ═══ APP ═══ -->
+<div id="app" class="app-hidden">
+
+    <div class="safe-top"></div>
+
+    <!-- Top Nav -->
+    <nav class="app-nav">
+        <a href="/" class="app-nav-logo">
+            <div class="app-nav-icon">
+                <svg width="14" height="9" viewBox="0 0 36 20" fill="none">
+                    <path d="M0 10 H6 L9 2 L12 18 L15 6 L18 14 L21 10 H36"
+                          stroke="white" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <span>CoughAI</span>
+        </a>
+        <div class="app-nav-links">
+            <a href="/" class="app-nav-link" data-i18n="nav.home">หน้าแรก</a>
+            <a href="/app" class="app-nav-link active" data-i18n="nav.app">แอป</a>
+            <a href="/dashboard" class="app-nav-link app-nav-dashboard">
+                <span class="app-nav-dot"></span><span data-i18n="nav.dashboard">แดชบอร์ด</span>
+            </a>
+            <button class="lang-toggle" type="button" onclick="toggleLang()" aria-label="สลับภาษา" title="TH / EN">
+                <span class="lang-label">EN</span>
+            </button>
+            <button class="theme-toggle" type="button" onclick="toggleTheme()" aria-label="สลับธีมมืด/สว่าง" title="สลับธีม">
+                <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Header -->
+    <header class="page-header">
+        <p class="page-eyebrow" id="app-date"></p>
+        <h1 class="page-title" data-i18n="app.header.title">วิเคราะห์การไอ</h1>
+    </header>
+
+    <main class="page-scroll">
+
+        <!-- Summary banner -->
+        <div class="banner stagger-1">
+            <div class="banner-icon">
+                <svg width="18" height="18" viewBox="0 0 36 20" fill="none">
+                    <path d="M0 10 H6 L9 2 L12 18 L15 6 L18 14 L21 10 H36"
+                          stroke="white" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <div class="banner-text">
+                <p class="banner-title" data-i18n="app.banner.title">บันทึกหรืออัปโหลดเสียงไอ</p>
+                <p class="banner-sub" data-i18n="app.banner.sub">วิเคราะห์ด้วย AI · ผลภายใน 5 วินาที</p>
+            </div>
+        </div>
+
+        <p class="group-label stagger-2" data-i18n="app.group.start">เริ่มต้น</p>
+
+        <!-- Input tiles -->
+        <div class="tiles stagger-2" id="input-section">
+
+            <div class="tile" id="record-section">
+                <div class="tile-header">
+                    <span class="chip chip-teal">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                            <path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                            <line x1="12" y1="19" x2="12" y2="22"/>
+                        </svg>
+                    </span>
+                    <span class="tile-label" data-i18n="app.tile.record.label">บันทึกเสียง</span>
+                </div>
+                <p class="tile-big">5 <span class="tile-unit" data-i18n="app.tile.record.unit">วินาที</span></p>
+                <p class="tile-desc" data-i18n="app.tile.record.desc">กดปุ่ม แล้วไอใส่ไมค์</p>
+
+                <div class="wave-track">
+                    <div class="wave-fill" id="audio-bar"></div>
+                    <span class="wave-hint" id="waveform-label" data-i18n="app.wave.idle">รอสัญญาณเสียง</span>
+                </div>
+
+                <button id="record-button" class="action-btn action-teal">
+                    <span class="rec-dot"></span>
+                    <span id="record-text" data-i18n="app.record.start">เริ่มบันทึก</span>
+                </button>
+            </div>
+
+            <div class="tile-divider"><span data-i18n="app.divider.or">หรือ</span></div>
+
+            <div class="tile" id="upload-section">
+                <div class="tile-header">
+                    <span class="chip chip-orange">
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
+                        </svg>
+                    </span>
+                    <span class="tile-label" data-i18n="app.tile.upload.label">อัปโหลด</span>
+                </div>
+                <p class="tile-big" data-i18n="app.tile.upload.big">ไฟล์เสียง</p>
+                <p class="tile-desc">.wav · .mp3 · .webm</p>
+
+                <label for="audio-upload" class="drop-zone" id="drop-zone">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" opacity="0.35">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                        <line x1="12" y1="11" x2="12" y2="17"/>
+                        <line x1="9" y1="14" x2="15" y2="14"/>
+                    </svg>
+                    <span class="drop-hint" data-i18n="app.drop.hint">แตะเพื่อเลือกไฟล์</span>
+                    <span id="file-name" class="drop-chosen"></span>
+                </label>
+                <input type="file" id="audio-upload" accept="audio/*" style="display:none">
+            </div>
+
+        </div>
+
+        <!-- ── Result ── -->
+        <div id="result-section" style="display:none">
+
+            <p class="group-label" data-i18n="app.group.result">ผลวิเคราะห์</p>
+
+            <div class="result-loading" id="result-loading">
+                <div class="ios-spinner">
+                    <div></div><div></div><div></div><div></div>
+                    <div></div><div></div><div></div><div></div>
+                </div>
+                <p id="status-message" class="loading-label" data-i18n="app.loading">กำลังวิเคราะห์...</p>
+            </div>
+
+            <div class="tile result-tile" id="result-card" style="display:none">
+                <div class="result-top">
+                    <div class="result-badge" id="result-badge">
+                        <svg id="badge-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.4">
+                            <polyline points="20 6 9 17 4 12"/>
+                        </svg>
+                    </div>
+                    <div class="result-info">
+                        <p class="result-category" data-i18n="app.result.category">การคัดกรอง</p>
+                        <p class="result-label" id="prediction-label">—</p>
+                    </div>
+                </div>
+
+                <p class="result-conf" id="confidence-score"></p>
+
+                <div class="h-divider"></div>
+
+                <p class="prob-head" data-i18n="app.prob.head">ความน่าจะเป็น</p>
+                <div id="probability-bar-container"></div>
+
+                <!-- ── คำแนะนำเบื้องต้น (ของใหม่) ── -->
+                <div class="h-divider"></div>
+                <div class="reco-block">
+                    <p class="prob-head" data-i18n="app.reco.head">คำแนะนำเบื้องต้น</p>
+                    <p class="reco-text" id="reco-text">—</p>
+                    <p class="reco-disclaimer" data-i18n="app.reco.disclaimer">
+                        * ผลนี้เป็นการคัดกรองเบื้องต้นด้วย AI ไม่ใช่การวินิจฉัยทางการแพทย์
+                        หากมีอาการน่ากังวล โปรดพบแพทย์เพื่อตรวจยืนยัน
+                    </p>
+                </div>
+
+                <!-- ── ปุ่ม action (ของใหม่) ── -->
+                <div class="action-row">
+                    <button id="hospital-btn" class="action-btn action-teal">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+                            <line x1="12" y1="7" x2="12" y2="13"/><line x1="9" y1="10" x2="15" y2="10"/>
+                        </svg>
+                        <span data-i18n="app.btn.hospital">รพ. ใกล้ฉัน</span>
+                    </button>
+                    <button id="call-btn" class="action-btn action-outline">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/>
+                        </svg>
+                        <span data-i18n="app.btn.call">โทรปรึกษาแพทย์</span>
+                    </button>
+                </div>
+
+                <button id="reset-button" class="ghost-btn" style="margin-top:14px">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                        <path d="M3 3v5h5"/>
+                    </svg>
+                    <span data-i18n="app.btn.again">วิเคราะห์อีกครั้ง</span>
+                </button>
+            </div>
+        </div>
+
+        <div style="height:60px"></div>
+    </main>
+
+</div>
+
+<!-- Modal (info / error) -->
+<div id="message-modal" class="sheet-overlay" style="display:none">
+    <div class="sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+            </svg>
+        </div>
+        <h3 id="modal-title" class="sheet-title"></h3>
+        <p id="modal-message" class="sheet-msg"></p>
+        <button id="modal-ok-button" class="action-btn action-teal" style="width:100%;justify-content:center" data-i18n="modal.ok">ตกลง</button>
+    </div>
+</div>
+
+<!-- Call picker sheet (ของใหม่) -->
+<div id="call-modal" class="sheet-overlay" style="display:none">
+    <div class="sheet">
+        <div class="sheet-handle"></div>
+        <h3 class="sheet-title" data-i18n="call.title">โทรปรึกษา</h3>
+        <p class="sheet-msg" style="margin-bottom:6px" data-i18n="call.sub">เลือกสายด่วนสุขภาพ หรือกรอกเบอร์ รพ. ที่ต้องการ</p>
+
+        <div class="call-list">
+            <a href="tel:1669" class="call-item">
+                <span class="call-emoji">🚑</span>
+                <span><span class="call-num">1669</span><br><span class="call-desc" data-i18n="call.1669">เจ็บป่วยฉุกเฉิน (การแพทย์ฉุกเฉิน)</span></span>
+            </a>
+            <a href="tel:1422" class="call-item">
+                <span class="call-emoji">🦠</span>
+                <span><span class="call-num">1422</span><br><span class="call-desc" data-i18n="call.1422">กรมควบคุมโรค (โควิด / โรคติดต่อ)</span></span>
+            </a>
+            <a href="tel:1330" class="call-item">
+                <span class="call-emoji">🏥</span>
+                <span><span class="call-num">1330</span><br><span class="call-desc" data-i18n="call.1330">สปสช. (สิทธิรักษา / สอบถามทั่วไป)</span></span>
+            </a>
+        </div>
+
+        <div class="custom-call-row">
+            <input id="custom-tel" type="tel" inputmode="tel" placeholder="เบอร์ รพ. ที่ต้องการโทร" data-i18n-ph="call.placeholder">
+            <button id="custom-call-btn" class="action-btn action-teal" style="padding:12px 18px" data-i18n="call.btn">โทร</button>
+        </div>
+
+        <button id="call-cancel" class="ghost-btn" style="width:100%;justify-content:center;margin-top:12px" data-i18n="call.close">ปิด</button>
+    </div>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
