@@ -90,6 +90,11 @@ KEEP_MODELS_LOADED = (
     ) == "1"
 )
 
+# เก็บไฟล์โมเดลไว้ใน /tmp หลัง unload (ไม่ลบ)
+# request ถัดไปบน instance เดิมจะไม่ต้องดาวน์โหลดจาก Drive ซ้ำ
+# RF 319 MB + CNN 3 MB < 500 MB ของ /tmp บน Vercel
+KEEP_MODEL_FILES = os.environ.get("KEEP_MODEL_FILES", "1") == "1"
+
 
 # ============================================================
 # FLASK
@@ -776,7 +781,7 @@ def unload_rf_model():
     except Exception:
         pass
 
-    if os.path.exists(
+    if (not KEEP_MODEL_FILES) and os.path.exists(
         RF_MODEL_PATH
     ):
 
@@ -966,7 +971,7 @@ def unload_cnn_model():
     except Exception:
         pass
 
-    if os.path.exists(
+    if (not KEEP_MODEL_FILES) and os.path.exists(
         CNN_MODEL_PATH
     ):
 
